@@ -1,0 +1,11 @@
+pulverizing:
+  # set effect to 0 to disable pulverizing.
+  effect: 121
+  particles: 8
+
+multiplier:
+  knockback: 1
+  damageAddition: 2.5
+  critical: 1.125
+  heal: 1
+  consume: 1.75

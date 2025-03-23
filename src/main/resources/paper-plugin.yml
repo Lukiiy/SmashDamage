@@ -1,0 +1,6 @@
+name: SmashDamage
+version: '1.0'
+main: me.lukiiy.smashDamage.SmashDamage
+api-version: '1.21'
+authors: [ Lukiiy ]
+description: Smash bros fatigue (& kb) mechanic!
