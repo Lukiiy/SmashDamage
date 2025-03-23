@@ -2,12 +2,7 @@ package me.lukiiy.smashDamage;
 
 import com.destroystokyo.paper.event.entity.EntityKnockbackByEntityEvent;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.title.Title;
 import org.bukkit.*;
-import org.bukkit.attribute.Attributable;
-import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -63,14 +58,17 @@ public final class SmashDamage extends JavaPlugin implements Listener {
         return entity.getPersistentDataContainer().getOrDefault(fatigueKey, PersistentDataType.DOUBLE, 0.0);
     }
 
-    public void fatigueDisplay(Damageable entity) {
+    public void displayFatigue(Damageable entity) {
+        if (getConfig().getBoolean("fatigueDisplay.disable")) return;
         if (fatigueDisplay.containsKey(entity)) {
             fatigueDisplay.get(entity).setTicksLived(1);
             return;
         }
 
-        Location spawn = entity.getLocation().add(0, entity.getHeight() + 1, 0);
-        TextDisplay display = spawn.getWorld().spawn(spawn, TextDisplay.class, it -> {
+        int maxTicks = getConfig().getInt("fatigueDisplay.timespan");
+        EntitySize size = new EntitySize(entity, getConfig().getDouble("fatigueDisplay.yOffset"));
+
+        TextDisplay display = entity.getWorld().spawn(getSpawn(entity, size), TextDisplay.class, it -> {
             it.setPersistent(false);
             it.text(ColorUtil.formatted(getFatigue(entity)));
             it.setSeeThrough(false);
@@ -85,55 +83,50 @@ public final class SmashDamage extends JavaPlugin implements Listener {
         });
 
         Bukkit.getGlobalRegionScheduler().runAtFixedRate(this, (task) -> {
-            if (!entity.isValid() || !display.isValid() || display.getTicksLived() > 180) {
+            if (!entity.isValid() || !display.isValid() || display.getTicksLived() > maxTicks) {
                 task.cancel();
                 display.remove();
                 fatigueDisplay.remove(entity);
                 return;
             }
 
-            Location loc = entity.getLocation().add(0, entity.getHeight() + 1, 0);
-            loc.setYaw(0);
-            loc.setPitch(0);
-            display.teleport(loc);
-
+            display.teleport(getSpawn(entity, size));
             display.text(ColorUtil.formatted(getFatigue(entity)));
         }, 1L, 2L);
     }
 
+    public void removeFatigue(Damageable entity) {
+        if (fatigueDisplay.containsKey(entity)) fatigueDisplay.get(entity).remove();
+    }
+
     public void pulverize(Damageable entity) {
-        if (getConfig().getDouble("pulverizing.effect") <= 0 || pulverizing.contains(entity)) return;
+        double threshold = getConfig().getDouble("pulverizing.effect");
+
+        if (threshold <= 0 || pulverizing.contains(entity)) return;
         pulverizing.add(entity);
 
         int particles = getConfig().getInt("pulverizing.particles");
-
-        double scale = 1;
-        if (entity instanceof Attributable attributable) {
-            AttributeInstance size = attributable.getAttribute(Attribute.SCALE);
-            if (size != null) scale = size.getValue();
-        }
-
-        final double w = entity.getWidth() / 2 * scale;
-        final double h = entity.getHeight() / 2 * scale;
+        final EntitySize size = new EntitySize(entity);
 
         entity.getScheduler().runAtFixedRate(this, (task) -> {
             double f = getFatigue(entity);
 
             if (entity instanceof Player p && p.getGameMode().isInvulnerable()) return;
-            if (!entity.isValid() || f < 121) {
+            if (!entity.isValid() || f < threshold) {
                 pulverizing.remove(entity);
                 task.cancel();
             }
 
-            entity.getWorld().spawnParticle(Particle.SMOKE, entity.getLocation().add(0, h, 0), particles, w, h / 4, w, 0.025);
+            entity.getWorld().spawnParticle(Particle.SMOKE, entity.getLocation().add(0, size.height, 0), particles, size.width, size.height / 4, size.width, 0.025);
         }, null, 1, 10);
     }
 
     // Listener
     @EventHandler
     public void join(PlayerJoinEvent e) {
-        Player p = e.getPlayer();
+        if (!getConfig().getBoolean("fatigueHud")) return;
 
+        Player p = e.getPlayer();
         p.getScheduler().runAtFixedRate(this, (task) -> {
             if (!p.isOnline()) task.cancel();
             if (p.getGameMode().isInvulnerable()) return;
@@ -167,7 +160,7 @@ public final class SmashDamage extends JavaPlugin implements Listener {
 
         double fatigue = getFatigue(entity) + add;
         setFatigue(entity, fatigue);
-        fatigueDisplay(entity);
+        displayFatigue(entity);
 
         if (fatigue > 121) pulverize(entity);
     }
@@ -191,5 +184,13 @@ public final class SmashDamage extends JavaPlugin implements Listener {
     @EventHandler
     public void respawn(PlayerRespawnEvent e) {
         setFatigue(e.getPlayer(), 0);
+    }
+
+    private Location getSpawn(Entity entity, EntitySize size) {
+        Location loc = entity.getLocation().add(0, size.height, 0);
+        loc.setYaw(0);
+        loc.setPitch(0);
+
+        return loc;
     }
 }

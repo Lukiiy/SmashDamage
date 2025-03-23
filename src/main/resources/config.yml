@@ -9,3 +9,13 @@ multiplier:
   critical: 1.125
   heal: 1
   consume: 1.75
+
+fatigueHud: true
+
+# this controls the fatigue display (text above entities)
+fatigueDisplay:
+  disable: false
+  yOffset: 1
+
+  # max ticks that the display can exist
+  timespan: 180
